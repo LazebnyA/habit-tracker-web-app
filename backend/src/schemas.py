@@ -61,7 +61,7 @@ class TrackInfoDatabaseModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class NewsDatabaseModel(DatabaseScheme):
+class NewsDatabaseModel(BaseModel):
     id: int
     created_date: datetime
     title: str

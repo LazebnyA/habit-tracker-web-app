@@ -1,3 +1,5 @@
+from typing import Callable
+
 from fastapi import HTTPException
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -15,6 +17,11 @@ DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{D
 engine = create_async_engine(DATABASE_URL)
 new_session = async_sessionmaker(engine, expire_on_commit=False)
 
+class KeyBuilders:
+    @staticmethod
+    def custom_key_builder(func: Callable, namespace: str, *args, **kwargs) -> str:
+        key = f"{namespace}:{func.__name__}:{':'.join(map(str, args))}:{':'.join([f'{k}:{v}' for k, v in kwargs.items()])}"
+        return key
 
 class UserNotFoundException(Exception):
     def __init__(self, detail: str):
@@ -98,6 +105,22 @@ class GoalRepository:
             goal_models = result.scalars().all()
 
             return [GoalDatabaseModel.model_validate(goal) for goal in goal_models]
+
+    @classmethod
+    async def get_user_email_by_goal_id(cls, goal_id: GoalID) -> str:
+        async with new_session() as session:
+            fetch_user_id = select(Goal.userID).where(Goal.id == goal_id.id)
+            user_id_result = await session.execute(fetch_user_id)
+            user_id = user_id_result.scalar_one_or_none()
+
+            if user_id:
+                fetch_user_email = select(User.email).where(User.id == user_id)
+                user_email_result = await session.execute(fetch_user_email)
+                user_email = user_email_result.scalar_one_or_none()
+
+                return user_email
+
+        return None
 
     @classmethod
     async def add_goal(cls, user_data: UserEmail, goal_data: GoalOrmScheme):
