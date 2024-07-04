@@ -1,8 +1,10 @@
+import json
+from datetime import datetime
+
 from fastapi import Depends, APIRouter, HTTPException
-from fastapi_cache.decorator import cache
 from redis.asyncio.client import Redis
 
-from src.repository import GoalRepository, KeyBuilders
+from src.repository import GoalRepository
 from src.schemas import GoalOrmScheme, UserEmail, GoalID, GoalDatabaseModel
 
 router = APIRouter(
@@ -13,13 +15,26 @@ router = APIRouter(
 redis = Redis()
 
 
+def custom_serializer(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Type {obj.__class__.__name__} not serializable")
+
+
 @router.get("/get", response_model=list[GoalDatabaseModel])
-@cache(expire=3600, namespace="goals", key_builder=KeyBuilders.custom_key_builder)
-async def get_goals(
-        user: UserEmail = Depends()
-):
-    goals_list = await GoalRepository.get_goals(user)
-    return goals_list
+async def get_goals(user: UserEmail = Depends()):
+    try:
+        cache = await redis.get(user.email)
+        if cache:
+            print("cache found")
+            return json.loads(cache)
+        else:
+            print("cache not found")
+            goals_list = await GoalRepository.get_goals(user)
+            await redis.set(user.email, json.dumps([goal.dict() for goal in goals_list], default=custom_serializer))
+            return goals_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
 
 
 @router.post("/create")
@@ -27,14 +42,13 @@ async def add_goal(
         user: UserEmail = Depends(),
         goal: GoalOrmScheme = Depends()
 ):
-    goal_to_add = await GoalRepository.add_goal(user, goal)
-
-    # Clear cache for the specific user
-    pattern = f"goals:get_goals:{user.email}:*"
-    async for key in redis.scan_iter(match=pattern):
+    try:
+        goal_to_add = await GoalRepository.add_goal(user, goal)
+        key = user.email
         await redis.delete(key)
-
-    return goal_to_add
+        return goal_to_add
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
 
 
 @router.put("/update")
@@ -45,26 +59,20 @@ async def update_goal(
     try:
         response = await GoalRepository.update_goal(goal_id, new_goal_name)
         user_email = await GoalRepository.get_user_email_by_goal_id(goal_id)
-        # Clear cache for the specific goal
-        pattern = f"goals:get_goals:{user_email}:*"
-        async for key in redis.scan_iter(match=pattern):
-            await redis.delete(key)
-
+        key = user_email
+        await redis.delete(key)
         return response
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
 
 
 @router.delete("/delete")
 async def delete_goal(goal_id: GoalID = Depends()):
     try:
-        response = await GoalRepository.delete_goal(goal_id)
         user_email = await GoalRepository.get_user_email_by_goal_id(goal_id)
-        # Clear cache for the specific goal
-        pattern = f"goals:get_goals:{user_email}:*"
-        async for key in redis.scan_iter(match=pattern):
-            await redis.delete(key)
-
+        response = await GoalRepository.delete_goal(goal_id)
+        key = user_email
+        await redis.delete(key)
         return response
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")

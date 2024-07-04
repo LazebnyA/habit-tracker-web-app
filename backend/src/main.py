@@ -1,6 +1,3 @@
-from contextlib import asynccontextmanager
-from typing import AsyncIterator, Callable
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,11 +5,6 @@ from src.routers.habits_router import router as habits_router
 from src.routers.goals_router import router as goals_router
 from src.routers.user_router import router as user_router
 from src.routers.news_router import router as news_router
-
-from fastapi_cache import FastAPICache
-from fastapi_cache.backends.redis import RedisBackend
-
-from redis import asyncio as aioredis
 
 app = FastAPI()
 
@@ -45,26 +37,6 @@ app.include_router(user_router)
 app.include_router(habits_router)
 app.include_router(news_router)
 
-
-# Async context manager to initialize FastAPICache with Redis
-@asynccontextmanager
-async def lifespan() -> AsyncIterator[None]:
-    redis = aioredis.from_url("redis://localhost")
-    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
-    try:
-        yield
-    finally:
-        await redis.close()
-
-
-app.lifespan_context = lifespan
-
-
-# Register the context manager with the app
-@app.on_event("startup")
-async def startup_event():
-    async with lifespan():
-        print("FastAPICache initialized")
 
 
 
