@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:latest
+    env_file: .env
+    ports:
+      - "5432:5432"
+    container_name: evolve-db
+
+  redis:
+    image: redis
+    container_name: evolve-redis
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    container_name: evolve-app
+

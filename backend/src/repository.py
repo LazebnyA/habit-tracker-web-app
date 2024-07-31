@@ -6,16 +6,17 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from starlette import status
 
-from src.config import DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
+from src.config import POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB
 from src.models.database import User, Goal, Habit, HabitTrack, NewsPost
 
 from src.schemas import UserRegScheme, UserOrmScheme, UserSignInScheme, GoalOrmScheme, UserEmail, GoalID, NewsScheme, \
     GoalDatabaseModel, HabitDatabaseModel, HabitDateModel, NewsDatabaseModel
 
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
 engine = create_async_engine(DATABASE_URL)
 new_session = async_sessionmaker(engine, expire_on_commit=False)
+
 
 class KeyBuilders:
     @staticmethod
@@ -23,14 +24,18 @@ class KeyBuilders:
         key = f"{namespace}:{func.__name__}:{':'.join(map(str, args))}:{':'.join([f'{k}:{v}' for k, v in kwargs.items()])}"
         return key
 
+
 class UserNotFoundException(Exception):
     def __init__(self, detail: str):
         self.detail = detail
 
 
 class UserRepository:
-    @classmethod
-    async def verify_email(cls, email: str) -> bool:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    async def verify_email(email: str) -> bool:
         async with new_session() as session:
             query = select(User).filter(User.email == email)
             result = await session.execute(query)
@@ -38,9 +43,8 @@ class UserRepository:
 
             return bool(user)
 
-
-    @classmethod
-    async def add_user(cls, data: UserRegScheme):
+    @staticmethod
+    async def add_user(data: UserRegScheme):
         async with new_session() as session:
             if not await UserRepository.verify_email(data.email):
                 user_dict = data.model_dump()
@@ -67,8 +71,8 @@ class UserRepository:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                                     detail="User with the provided email already exists")
 
-    @classmethod
-    async def verify_account(cls, data: UserSignInScheme):
+    @staticmethod
+    async def verify_account(data: UserSignInScheme):
         async with new_session() as session:
             query = select(User).filter(User.email == data.email)
             result = await session.execute(query)
@@ -90,8 +94,11 @@ class UserRepository:
 
 
 class GoalRepository:
-    @classmethod
-    async def get_goals(cls, user: UserEmail) -> list[GoalDatabaseModel]:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    async def get_goals(user: UserEmail) -> list[GoalDatabaseModel]:
         async with new_session() as session:
             fetch_id = select(User.id).where(User.email == user.email)
             result = await session.execute(fetch_id)
@@ -106,8 +113,8 @@ class GoalRepository:
 
             return [GoalDatabaseModel.model_validate(goal) for goal in goal_models]
 
-    @classmethod
-    async def get_user_email_by_goal_id(cls, goal_id: GoalID) -> str:
+    @staticmethod
+    async def get_user_email_by_goal_id(goal_id: GoalID) -> str:
         async with new_session() as session:
             fetch_user_id = select(Goal.userID).where(Goal.id == goal_id.id)
             user_id_result = await session.execute(fetch_user_id)
@@ -122,8 +129,8 @@ class GoalRepository:
 
         return None
 
-    @classmethod
-    async def add_goal(cls, user_data: UserEmail, goal_data: GoalOrmScheme):
+    @staticmethod
+    async def add_goal(user_data: UserEmail, goal_data: GoalOrmScheme):
         async with new_session() as session:
             fetch_id = select(User.id).where(user_data.email == User.email)
             result = await session.execute(fetch_id)
@@ -138,8 +145,8 @@ class GoalRepository:
 
             return goal
 
-    @classmethod
-    async def update_goal(cls, goal_id: GoalID, goal_data: GoalOrmScheme):
+    @staticmethod
+    async def update_goal(goal_id: GoalID, goal_data: GoalOrmScheme):
         async with new_session() as session:
             updated = update(Goal).where(Goal.id == goal_id.id).values(name=goal_data.name)
             updated_val = await session.execute(updated)
@@ -149,8 +156,8 @@ class GoalRepository:
 
             return updated_val
 
-    @classmethod
-    async def delete_goal(cls, goal_id: GoalID):
+    @staticmethod
+    async def delete_goal(goal_id: GoalID):
         async with new_session() as session:
             delete_statement = delete(Goal).where(Goal.id == goal_id.id)
             deleted_val = await session.execute(delete_statement)
@@ -162,8 +169,11 @@ class GoalRepository:
 
 
 class HabitsRepository:
-    @classmethod
-    async def get_habits(cls, goal_id: int) -> list[HabitDatabaseModel]:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    async def get_habits(goal_id: int) -> list[HabitDatabaseModel]:
         async with new_session() as session:
             fetch_habits = select(Habit).where(goal_id == Habit.goalID)
             result = await session.execute(fetch_habits)
@@ -171,8 +181,8 @@ class HabitsRepository:
 
             return [HabitDatabaseModel.model_validate(habit) for habit in habits]
 
-    @classmethod
-    async def get_habit(cls, habit_id: int) -> HabitDatabaseModel:
+    @staticmethod
+    async def get_habit(habit_id: int) -> HabitDatabaseModel:
         async with new_session() as session:
             fetch_habits = select(Habit).where(Habit.id == habit_id)
             result = await session.execute(fetch_habits)
@@ -180,8 +190,8 @@ class HabitsRepository:
 
             return HabitDatabaseModel.model_validate(habit)
 
-    @classmethod
-    async def add_habit(cls, goal_id: GoalID, habit_name: str):
+    @staticmethod
+    async def add_habit(goal_id: GoalID, habit_name: str):
         async with new_session() as session:
             habit = Habit(name=habit_name, goalID=goal_id.id)
 
@@ -192,8 +202,8 @@ class HabitsRepository:
 
             return habit
 
-    @classmethod
-    async def update_habit(cls, habit_id: int, new_habit_name: str):
+    @staticmethod
+    async def update_habit(habit_id: int, new_habit_name: str):
         async with new_session() as session:
             updated = update(Habit).where(Habit.id == habit_id).values(name=new_habit_name)
             updated_val = await session.execute(updated)
@@ -203,8 +213,8 @@ class HabitsRepository:
 
             return updated_val
 
-    @classmethod
-    async def delete_habit(cls, habit_id: int):
+    @staticmethod
+    async def delete_habit(habit_id: int):
         async with new_session() as session:
             delete_statement = delete(Habit).where(Habit.id == habit_id)
             deleted_val = await session.execute(delete_statement)
@@ -216,8 +226,11 @@ class HabitsRepository:
 
 
 class HabitTrackRepository:
-    @classmethod
-    async def track_habit(cls, habit_id: int, date: str):
+    def __init__(self):
+        pass
+
+    @staticmethod
+    async def track_habit(habit_id: int, date: str):
         async with new_session() as session:
             existing_habit = select(HabitTrack).filter_by(habitID=habit_id, date=date)
             result = await session.execute(existing_habit)
@@ -236,8 +249,8 @@ class HabitTrackRepository:
                 await session.commit()
                 return habit_track_orm
 
-    @classmethod
-    async def untrack_habit(cls, habit_id: int, date: str):
+    @staticmethod
+    async def untrack_habit(habit_id: int, date: str):
         async with new_session() as session:
             updated_stmt = (
                 update(HabitTrack)
@@ -258,8 +271,8 @@ class HabitTrackRepository:
 
             return result
 
-    @classmethod
-    async def get_habits_by_date(cls, goal_id: int, date: str) -> list[int]:
+    @staticmethod
+    async def get_habits_by_date(goal_id: int, date: str) -> list[int]:
         async with new_session() as session:
             stmt = (
                 select(Habit.id)
@@ -280,8 +293,8 @@ class HabitTrackRepository:
             #
             return habits_ids
 
-    @classmethod
-    async def get_dates_by_habit(cls, habit_id: int) -> list[str]:
+    @staticmethod
+    async def get_dates_by_habit(habit_id: int) -> list[str]:
         async with new_session() as session:
             stmt = (
                 select(HabitTrack.date)
@@ -302,8 +315,11 @@ class HabitTrackRepository:
 
 
 class NewsRepository:
-    @classmethod
-    async def post_news(cls, post_data: NewsScheme):
+    def __init__(self):
+        pass
+
+    @staticmethod
+    async def post_news(post_data: NewsScheme):
         async with new_session() as session:
             post = NewsPost(title=post_data.title, content=post_data.content, userID=post_data.user_id)
 
@@ -314,8 +330,8 @@ class NewsRepository:
 
             return post
 
-    @classmethod
-    async def get_news(cls) -> list[NewsDatabaseModel]:
+    @staticmethod
+    async def get_news() -> list[NewsDatabaseModel]:
         async with new_session() as session:
             fetch_posts = select(NewsPost)
             result = await session.execute(fetch_posts)
