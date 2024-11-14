@@ -7,12 +7,16 @@ services:
     ports:
       - "5432:5432"
     container_name: evolve-db
+    networks:
+      - evolve-network
 
   redis:
     image: redis
     container_name: evolve-redis
     ports:
       - "6379:6379"
+    networks:
+      - evolve-network
 
   app:
     build: .
@@ -23,4 +27,9 @@ services:
       - db
       - redis
     container_name: evolve-app
+    networks:
+      - evolve-network
 
+networks:
+  evolve-network:
+    driver: bridge
