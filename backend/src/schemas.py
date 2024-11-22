@@ -8,6 +8,14 @@ class Goal(BaseModel):
     name: str
 
 
+class UserSchema(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    email: EmailStr
+    password: bytes
+    active: bool = True
+
+
 class UserRegScheme(BaseModel):
     firstName: str = Field(..., min_length=1)
     lastName: str = Field(..., min_length=1)

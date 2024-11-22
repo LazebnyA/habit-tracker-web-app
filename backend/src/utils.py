@@ -1,3 +1,4 @@
+import bcrypt
 import jwt
 
 from src.config import AUTH_JWT
@@ -19,3 +20,14 @@ def decode_jwt_token(
 ):
     decoded = jwt.decode(token, public_key, algorithms=[algorithm])
     return decoded
+
+
+def hash_password(password: str) -> bytes:
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password.encode(), salt)
+
+    return hashed_password
+
+
+def validate_password(password: str, hashed_password: bytes) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed_password)
