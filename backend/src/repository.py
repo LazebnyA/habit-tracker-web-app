@@ -3,12 +3,10 @@ from typing import Callable
 from fastapi import HTTPException
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-
 from starlette import status
 
 from src.config import POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB
 from src.models.database import User, Goal, Habit, HabitTrack, NewsPost
-
 from src.schemas import UserRegScheme, UserSignInScheme, GoalOrmScheme, UserEmail, GoalID, NewsScheme, \
     GoalDatabaseModel, HabitDatabaseModel, NewsDatabaseModel, UserSchema
 
@@ -32,8 +30,6 @@ class UserAlreadyExistsException(HTTPException):
 
 
 class UserRepository:
-    def __init__(self):
-        pass
 
     @staticmethod
     async def verify_email(email: str) -> None:
@@ -83,11 +79,7 @@ class UserRepository:
                     detail="Invalid password"
                 )
 
-            user_dict = user.dict()
-            user_dict.pop('password')
-            return UserSchema(**user_dict)
-
-
+            return UserSchema.from_orm(user)
 
 
 class GoalRepository:

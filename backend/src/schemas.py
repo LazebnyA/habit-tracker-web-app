@@ -9,11 +9,13 @@ class Goal(BaseModel):
 
 
 class UserSchema(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    email: EmailStr
     first_name: str
     last_name: str
+    email: EmailStr
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
 
 
 class TokenSchema(BaseModel):
