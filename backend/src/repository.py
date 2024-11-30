@@ -9,13 +9,13 @@ from starlette import status
 from src.config import POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB
 from src.models.database import User, Goal, Habit, HabitTrack, NewsPost
 
-from src.schemas import UserRegScheme, UserOrmScheme, UserSignInScheme, GoalOrmScheme, UserEmail, GoalID, NewsScheme, \
-    GoalDatabaseModel, HabitDatabaseModel, HabitDateModel, NewsDatabaseModel
+from src.schemas import UserRegScheme, UserSignInScheme, GoalOrmScheme, UserEmail, GoalID, NewsScheme, \
+    GoalDatabaseModel, HabitDatabaseModel, NewsDatabaseModel, UserSchema
 
 DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
 engine = create_async_engine(DATABASE_URL)
-new_session = async_sessionmaker(engine, expire_on_commit=False)
+db_session = async_sessionmaker(engine, expire_on_commit=False)
 
 
 class KeyBuilders:
@@ -25,9 +25,10 @@ class KeyBuilders:
         return key
 
 
-class UserNotFoundException(Exception):
-    def __init__(self, detail: str):
-        self.detail = detail
+class UserAlreadyExistsException(HTTPException):
+    def __init__(self, email: str):
+        self.detail = f"User with the provided email '{email}' already exists"
+        self.status_code = status.HTTP_409_CONFLICT
 
 
 class UserRepository:
@@ -35,62 +36,58 @@ class UserRepository:
         pass
 
     @staticmethod
-    async def verify_email(email: str) -> bool:
-        async with new_session() as session:
+    async def verify_email(email: str) -> None:
+        async with db_session() as session:
             query = select(User).filter(User.email == email)
             result = await session.execute(query)
             user = result.scalars().one_or_none()
 
-            return bool(user)
+            if user:
+                raise UserAlreadyExistsException(email=email)
 
     @staticmethod
-    async def add_user(data: UserRegScheme):
-        async with new_session() as session:
-            if not await UserRepository.verify_email(data.email):
-                user_dict = data.model_dump()
+    async def create_user(data: UserRegScheme) -> UserSchema:
+        async with (db_session() as session):
+            user_dict: dict = data.model_dump()
 
-                user_dict.popitem()
+            await UserRepository.verify_email(user_dict.get('email'))
 
-                user = User(**user_dict)
+            user_dict.pop('password_confirm')
+            user: User = User(**user_dict)
 
-                user_dict.popitem()
+            user_dict.pop('password')
 
-                session.add(user)
+            session.add(user)
 
-                await session.flush()
-                await session.commit()
+            await session.flush()
+            await session.commit()
 
-                user_info = {
-                    "firstName": user_dict["firstName"],
-                    "lastName": user_dict["lastName"],
-                    "email": user_dict["email"]
-                }
+            user_data: UserSchema = UserSchema(**user_dict)
 
-                return user_info
-            else:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                    detail="User with the provided email already exists")
+            return user_data
 
     @staticmethod
-    async def verify_account(data: UserSignInScheme):
-        async with new_session() as session:
+    async def verify_account(data: UserSignInScheme) -> UserSchema:
+        async with db_session() as session:
             query = select(User).filter(User.email == data.email)
             result = await session.execute(query)
             user = result.scalars().one_or_none()
-            print(user)
-            if user and data.password == user.password:
-                user_info = {
-                    "firstName": user.firstName,
-                    "lastName": user.lastName,
-                    "email": user.email
-                }
-                return user_info
-            elif user:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                    detail="User with the provided email and password does not exist")
-            else:
+
+            if not user:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                     detail="User with the provided email does not exist")
+
+            if data.password != user.password:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid password"
+                )
+
+            user_dict = user.dict()
+            user_dict.pop('password')
+            return UserSchema(**user_dict)
+
+
 
 
 class GoalRepository:
@@ -99,7 +96,7 @@ class GoalRepository:
 
     @staticmethod
     async def get_goals(user: UserEmail) -> list[GoalDatabaseModel]:
-        async with new_session() as session:
+        async with db_session() as session:
             fetch_id = select(User.id).where(User.email == user.email)
             result = await session.execute(fetch_id)
             user_id = result.scalars().one_or_none()
@@ -115,7 +112,7 @@ class GoalRepository:
 
     @staticmethod
     async def get_user_email_by_goal_id(goal_id: GoalID) -> str:
-        async with new_session() as session:
+        async with db_session() as session:
             fetch_user_id = select(Goal.userID).where(Goal.id == goal_id.id)
             user_id_result = await session.execute(fetch_user_id)
             user_id = user_id_result.scalar_one_or_none()
@@ -131,7 +128,7 @@ class GoalRepository:
 
     @staticmethod
     async def add_goal(user_data: UserEmail, goal_data: GoalOrmScheme):
-        async with new_session() as session:
+        async with db_session() as session:
             fetch_id = select(User.id).where(user_data.email == User.email)
             result = await session.execute(fetch_id)
             user_id = result.scalars().one_or_none()
@@ -147,7 +144,7 @@ class GoalRepository:
 
     @staticmethod
     async def update_goal(goal_id: GoalID, goal_data: GoalOrmScheme):
-        async with new_session() as session:
+        async with db_session() as session:
             updated = update(Goal).where(Goal.id == goal_id.id).values(name=goal_data.name)
             updated_val = await session.execute(updated)
 
@@ -158,7 +155,7 @@ class GoalRepository:
 
     @staticmethod
     async def delete_goal(goal_id: GoalID):
-        async with new_session() as session:
+        async with db_session() as session:
             delete_statement = delete(Goal).where(Goal.id == goal_id.id)
             deleted_val = await session.execute(delete_statement)
 
@@ -174,7 +171,7 @@ class HabitsRepository:
 
     @staticmethod
     async def get_habits(goal_id: int) -> list[HabitDatabaseModel]:
-        async with new_session() as session:
+        async with db_session() as session:
             fetch_habits = select(Habit).where(goal_id == Habit.goalID)
             result = await session.execute(fetch_habits)
             habits = result.scalars().all()
@@ -183,7 +180,7 @@ class HabitsRepository:
 
     @staticmethod
     async def get_habit(habit_id: int) -> HabitDatabaseModel:
-        async with new_session() as session:
+        async with db_session() as session:
             fetch_habits = select(Habit).where(Habit.id == habit_id)
             result = await session.execute(fetch_habits)
             habit = result.scalars().one_or_none()
@@ -192,7 +189,7 @@ class HabitsRepository:
 
     @staticmethod
     async def add_habit(goal_id: GoalID, habit_name: str):
-        async with new_session() as session:
+        async with db_session() as session:
             habit = Habit(name=habit_name, goalID=goal_id.id)
 
             session.add(habit)
@@ -204,7 +201,7 @@ class HabitsRepository:
 
     @staticmethod
     async def update_habit(habit_id: int, new_habit_name: str):
-        async with new_session() as session:
+        async with db_session() as session:
             updated = update(Habit).where(Habit.id == habit_id).values(name=new_habit_name)
             updated_val = await session.execute(updated)
 
@@ -215,7 +212,7 @@ class HabitsRepository:
 
     @staticmethod
     async def delete_habit(habit_id: int):
-        async with new_session() as session:
+        async with db_session() as session:
             delete_statement = delete(Habit).where(Habit.id == habit_id)
             deleted_val = await session.execute(delete_statement)
 
@@ -231,7 +228,7 @@ class HabitTrackRepository:
 
     @staticmethod
     async def track_habit(habit_id: int, date: str):
-        async with new_session() as session:
+        async with db_session() as session:
             existing_habit = select(HabitTrack).filter_by(habitID=habit_id, date=date)
             result = await session.execute(existing_habit)
             habit = result.scalars().one_or_none()
@@ -251,7 +248,7 @@ class HabitTrackRepository:
 
     @staticmethod
     async def untrack_habit(habit_id: int, date: str):
-        async with new_session() as session:
+        async with db_session() as session:
             updated_stmt = (
                 update(HabitTrack)
                 .where((HabitTrack.habitID == habit_id) & (HabitTrack.date == date))
@@ -273,7 +270,7 @@ class HabitTrackRepository:
 
     @staticmethod
     async def get_habits_by_date(goal_id: int, date: str) -> list[int]:
-        async with new_session() as session:
+        async with db_session() as session:
             stmt = (
                 select(Habit.id)
                 .join(HabitTrack)
@@ -295,7 +292,7 @@ class HabitTrackRepository:
 
     @staticmethod
     async def get_dates_by_habit(habit_id: int) -> list[str]:
-        async with new_session() as session:
+        async with db_session() as session:
             stmt = (
                 select(HabitTrack.date)
                 .where(
@@ -320,7 +317,7 @@ class NewsRepository:
 
     @staticmethod
     async def post_news(post_data: NewsScheme):
-        async with new_session() as session:
+        async with db_session() as session:
             post = NewsPost(title=post_data.title, content=post_data.content, userID=post_data.user_id)
 
             session.add(post)
@@ -332,7 +329,7 @@ class NewsRepository:
 
     @staticmethod
     async def get_news() -> list[NewsDatabaseModel]:
-        async with new_session() as session:
+        async with db_session() as session:
             fetch_posts = select(NewsPost)
             result = await session.execute(fetch_posts)
             response = result.scalars().all()

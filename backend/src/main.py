@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers.habits_router import router as habits_router
 from src.routers.goals_router import router as goals_router
-from src.routers.user_router import router as user_router
+from src.routers.auth_router import router as auth_router
 from src.routers.news_router import router as news_router
 
 app = FastAPI()
@@ -28,7 +28,7 @@ def read_root():
 
 
 app.include_router(goals_router)
-app.include_router(user_router)
+app.include_router(auth_router)
 app.include_router(habits_router)
 app.include_router(news_router)
 

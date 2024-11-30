@@ -12,34 +12,32 @@ class UserSchema(BaseModel):
     model_config = ConfigDict(strict=True)
 
     email: EmailStr
-    password: bytes
-    active: bool = True
+    first_name: str
+    last_name: str
+
+
+class TokenSchema(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "Bearer"
 
 
 class UserRegScheme(BaseModel):
-    firstName: str = Field(..., min_length=1)
-    lastName: str = Field(..., min_length=1)
-    email: EmailStr = Field(min_length=1)
-    password: str = Field(..., min_length=5)
-    passwordConfirm: str = Field(..., min_length=5)
-
-    @model_validator(mode='after')
-    def check_passwords_match(self) -> Self:
-        pw1 = self.password
-        pw2 = self.passwordConfirm
-        if pw1 is not None and pw2 is not None and pw1 != pw2:
-            raise ValueError('passwords do not match')
-        return self.passwordConfirm
+    first_name: str = Field(min_length=1, max_length=50)
+    last_name: str = Field(min_length=1, max_length=50)
+    email: EmailStr
+    password: str = Field(min_length=5)
+    password_confirm: str = Field(min_length=5)
 
 
 class UserSignInScheme(BaseModel):
-    email: EmailStr = Field(min_length=1)
-    password: str = Field(..., min_length=5)
+    email: EmailStr
+    password: str = Field(min_length=5)
 
 
 class UserOrmScheme(BaseModel):
-    firstName: str
-    lastName: str
+    first_name: str
+    last_name: str
     email: EmailStr
     password: str
 

@@ -16,8 +16,8 @@ class User(Base):
     created_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    firstName: Mapped[str] = mapped_column(String(100), nullable=False)
-    lastName: Mapped[str] = mapped_column(String(100), nullable=False)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(100), nullable=False)
     password: Mapped[str] = mapped_column(String(128), nullable=False)
     news_posts: Mapped[List["NewsPost"]] = relationship(back_populates="user")
