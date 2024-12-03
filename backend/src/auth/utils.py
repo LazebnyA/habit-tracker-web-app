@@ -3,7 +3,7 @@ from datetime import timedelta, datetime, UTC
 import bcrypt
 import jwt
 
-from src.config import AUTH_JWT
+from src.config import AuthJWT
 
 TOKEN_TYPE_FIELD = "type"
 ACCESS_TOKEN_TYPE = "access"
@@ -13,8 +13,8 @@ REFRESH_TOKEN_TYPE = "refresh"
 def encode_jwt(
         payload: dict,
         expire_timedelta: timedelta,
-        private_key: str = AUTH_JWT.private_key_path.read_text(),
-        algorithm: str = AUTH_JWT.algorithm,
+        private_key: str = AuthJWT.private_key_path.read_text(),
+        algorithm: str = AuthJWT.algorithm,
 ):
     to_encode = payload.copy()
     now = datetime.now(UTC)
@@ -32,8 +32,8 @@ def encode_jwt(
 
 def decode_jwt(
         token: str | bytes,
-        public_key: str = AUTH_JWT.public_key_path.read_text(),
-        algorithm: str = AUTH_JWT.algorithm,
+        public_key: str = AuthJWT.public_key_path.read_text(),
+        algorithm: str = AuthJWT.algorithm,
 ):
     decoded = jwt.decode(token, public_key, algorithms=[algorithm])
     return decoded
@@ -41,9 +41,10 @@ def decode_jwt(
 
 def get_expiration_timedelta(token_type) -> timedelta:
     if token_type == ACCESS_TOKEN_TYPE:
-        return timedelta(days=AUTH_JWT.access_token_expires_days)
+        print(AuthJWT.access_token_expires_days)
+        return timedelta(days=AuthJWT.access_token_expires_days)
     elif token_type == REFRESH_TOKEN_TYPE:
-        return timedelta(days=AUTH_JWT.refresh_token_expires_days)
+        return timedelta(days=AuthJWT.refresh_token_expires_days)
 
     raise ValueError(f"Token type {token_type} not supported")
 

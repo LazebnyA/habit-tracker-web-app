@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 
 from src.auth.dependencies import auth_user_issue_jwt, REFRESH_TOKEN_TYPE, UserGetterByToken, \
     ACCESS_TOKEN_TYPE
-from src.repository import UserRepository
-from src.schemas import UserRegScheme, UserSignInScheme, UserSchema, TokenSchema
+from src.auth.repository import UserRepository
+from src.auth.schemas import UserSchema, TokenSchema, UserRegScheme, UserSignInScheme
 
 router = APIRouter(
     prefix="",

@@ -1,20 +1,12 @@
 from typing import Callable
 
-from fastapi import HTTPException
 from sqlalchemy import select, update, delete
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from starlette import status
 
-from src.auth.utils import hash_password, validate_password
-from src.config import POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB
-from src.models.database import User, Goal, Habit, HabitTrack, NewsPost
-from src.schemas import UserRegScheme, UserSignInScheme, GoalOrmScheme, UserEmail, GoalID, NewsScheme, \
-    GoalDatabaseModel, HabitDatabaseModel, NewsDatabaseModel, UserSchema
-
-DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-
-engine = create_async_engine(DATABASE_URL)
-db_session = async_sessionmaker(engine, expire_on_commit=False)
+from src.database import db_session
+from src.models.database import Goal, Habit, HabitTrack, NewsPost
+from src.auth.models import User
+from src.schemas import GoalOrmScheme, UserEmail, GoalID, NewsScheme, \
+    GoalDatabaseModel, HabitDatabaseModel, NewsDatabaseModel
 
 
 class KeyBuilders:
@@ -23,80 +15,6 @@ class KeyBuilders:
         key = f"{namespace}:{func.__name__}:{':'.join(map(str, args))}:{':'.join([f'{k}:{v}' for k, v in kwargs.items()])}"
         return key
 
-
-class UserAlreadyExistsException(HTTPException):
-    def __init__(self, email: str):
-        self.detail = f"User with the provided email '{email}' already exists"
-        self.status_code = status.HTTP_409_CONFLICT
-
-
-class UserDoesNotExistException(HTTPException):
-    def __init__(self, email: str | None = None):
-        if email:
-            self.detail = f"User with the provided email '{email}' does not exist"
-        else:
-            self.detail = f"User does not exist"
-
-        self.status_code = status.HTTP_404_NOT_FOUND
-
-
-class UserRepository:
-    @staticmethod
-    async def create_user(data: UserRegScheme) -> UserSchema:
-        user_dict: dict = data.model_dump()
-
-        async with db_session() as session:
-            query = select(User).filter(User.email == user_dict['email'])
-            result = await session.execute(query)
-            if result.scalars().one_or_none():
-                raise UserAlreadyExistsException(email=user_dict['email'])
-
-            user_dict.pop('password_confirm')
-
-            user_dict['password'] = hash_password(user_dict['password'])
-            user: User = User(**user_dict)
-            user_dict.pop('password')
-
-            session.add(user)
-
-            await session.flush()
-            await session.commit()
-
-            user_data: UserSchema = UserSchema(**user_dict)
-
-            return user_data
-
-    @staticmethod
-    async def verify_account(data: UserSignInScheme) -> UserSchema:
-        user_dict: dict = data.model_dump()
-
-        async with db_session() as session:
-            query = select(User).filter(User.email == user_dict.get('email'))
-            result = await session.execute(query)
-            user = result.scalars().one_or_none()
-
-            if not user:
-                raise UserDoesNotExistException(email=data.email)
-
-            if not validate_password(user_dict['password'], user.password):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid password"
-                )
-
-            return UserSchema.from_orm(user)
-
-    @staticmethod
-    async def get_user_info(data: UserSchema) -> UserSchema:
-        async with db_session() as session:
-            query = select(User).filter(data.id == User.id)
-            result = await session.execute(query)
-            user = result.scalars().one_or_none()
-
-            if not user:
-                raise UserDoesNotExistException()
-
-            return UserSchema.from_orm(user)
 
 class GoalRepository:
     def __init__(self):

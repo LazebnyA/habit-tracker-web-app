@@ -4,7 +4,7 @@ from jwt import InvalidTokenError
 from starlette import status
 
 from src.auth.utils import decode_jwt, create_jwt
-from src.schemas import UserSchema, TokenSchema
+from src.auth.schemas import UserSchema, TokenSchema
 
 http_bearer = HTTPBearer(auto_error=True)
 

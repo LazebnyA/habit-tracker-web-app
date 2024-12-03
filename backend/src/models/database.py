@@ -2,26 +2,9 @@ from datetime import datetime
 from typing import List
 
 from sqlalchemy import String, DateTime, func, ForeignKey, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
-class Base(DeclarativeBase):
-    pass
-
-
-class User(Base):
-    __tablename__ = "user"
-
-    id: Mapped[int] = mapped_column(primary_key=True, nullable=False, index=True)
-    created_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    email: Mapped[str] = mapped_column(String(100), nullable=False)
-    password: Mapped[str] = mapped_column(String(128), nullable=False)
-    news_posts: Mapped[List["NewsPost"]] = relationship(back_populates="user")
-    goals: Mapped[List["Goal"]] = relationship(back_populates="user")
+from src.database import Base
 
 
 class Goal(Base):
