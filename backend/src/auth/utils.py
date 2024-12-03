@@ -4,7 +4,6 @@ import bcrypt
 import jwt
 
 from src.config import AUTH_JWT
-from src.schemas import UserSchema
 
 TOKEN_TYPE_FIELD = "type"
 ACCESS_TOKEN_TYPE = "access"
@@ -40,34 +39,27 @@ def decode_jwt(
     return decoded
 
 
+def get_expiration_timedelta(token_type) -> timedelta:
+    if token_type == ACCESS_TOKEN_TYPE:
+        return timedelta(days=AUTH_JWT.access_token_expires_days)
+    elif token_type == REFRESH_TOKEN_TYPE:
+        return timedelta(days=AUTH_JWT.refresh_token_expires_days)
+
+    raise ValueError(f"Token type {token_type} not supported")
+
+
 def create_jwt(
         token_type: str,
-        token_payload: dict,
-        expire_timedelta: timedelta
+        token_payload: dict
 ) -> str:
     jwt_payload = {TOKEN_TYPE_FIELD: token_type}
     jwt_payload.update(token_payload)
+
+    expire_timedelta = get_expiration_timedelta(token_type)
+
     return encode_jwt(
         payload=jwt_payload,
         expire_timedelta=expire_timedelta,
-    )
-
-
-def create_access_token(user: UserSchema) -> str:
-    jwt_payload = {"sub": user.email}
-    return create_jwt(
-        token_type=ACCESS_TOKEN_TYPE,
-        token_payload=jwt_payload,
-        expire_timedelta=timedelta(days=AUTH_JWT.access_token_expires_days),
-    )
-
-
-def create_refresh_token(user: UserSchema) -> str:
-    jwt_payload = {"sub": user.email}
-    return create_jwt(
-        token_type=REFRESH_TOKEN_TYPE,
-        token_payload=jwt_payload,
-        expire_timedelta=timedelta(days=AUTH_JWT.refresh_token_expires_days),
     )
 
 

@@ -31,8 +31,12 @@ class UserAlreadyExistsException(HTTPException):
 
 
 class UserDoesNotExistException(HTTPException):
-    def __init__(self, email: str):
-        self.detail = f"User with the provided email '{email}' does not exist"
+    def __init__(self, email: str | None = None):
+        if email:
+            self.detail = f"User with the provided email '{email}' does not exist"
+        else:
+            self.detail = f"User does not exist"
+
         self.status_code = status.HTTP_404_NOT_FOUND
 
 
@@ -82,6 +86,17 @@ class UserRepository:
 
             return UserSchema.from_orm(user)
 
+    @staticmethod
+    async def get_user_info(data: UserSchema) -> UserSchema:
+        async with db_session() as session:
+            query = select(User).filter(data.id == User.id)
+            result = await session.execute(query)
+            user = result.scalars().one_or_none()
+
+            if not user:
+                raise UserDoesNotExistException()
+
+            return UserSchema.from_orm(user)
 
 class GoalRepository:
     def __init__(self):

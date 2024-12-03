@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers.habits_router import router as habits_router
 from src.routers.goals_router import router as goals_router
-from src.routers.auth_router import router as auth_router
+from src.auth.router import router as auth_router
 from src.routers.news_router import router as news_router
 
 app = FastAPI()
