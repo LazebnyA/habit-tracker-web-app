@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers.habits_router import router as habits_router
-from src.routers.goals_router import router as goals_router
+from src.goal.router import router as goals_router
 from src.auth.router import router as auth_router
 from src.routers.news_router import router as news_router
 
@@ -31,7 +31,3 @@ app.include_router(goals_router)
 app.include_router(auth_router)
 app.include_router(habits_router)
 app.include_router(news_router)
-
-
-
-

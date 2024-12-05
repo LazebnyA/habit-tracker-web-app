@@ -41,7 +41,6 @@ def decode_jwt(
 
 def get_expiration_timedelta(token_type) -> timedelta:
     if token_type == ACCESS_TOKEN_TYPE:
-        print(AuthJWT.access_token_expires_days)
         return timedelta(days=AuthJWT.access_token_expires_days)
     elif token_type == REFRESH_TOKEN_TYPE:
         return timedelta(days=AuthJWT.refresh_token_expires_days)

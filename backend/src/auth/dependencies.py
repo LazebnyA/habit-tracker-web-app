@@ -68,7 +68,7 @@ def generate_token(
         user: UserSchema, token_type: str
 ):
     jwt_payload = {
-        'sub': user.id,
+        'sub': str(user.id),
         'email': user.email,
     }
 

@@ -26,7 +26,7 @@ class UserDoesNotExistException(HTTPException):
 
 class UserRepository:
     @staticmethod
-    async def create_user(data: UserRegScheme) -> UserSchema:
+    async def create(data: UserRegScheme) -> UserSchema:
         user_dict: dict = data.model_dump()
 
         async with db_session() as session:
@@ -46,12 +46,10 @@ class UserRepository:
             await session.flush()
             await session.commit()
 
-            user_data: UserSchema = UserSchema(**user_dict)
-
-            return user_data
+            return UserSchema.from_orm(user)
 
     @staticmethod
-    async def verify_account(data: UserSignInScheme) -> UserSchema:
+    async def log_in(data: UserSignInScheme) -> UserSchema:
         user_dict: dict = data.model_dump()
 
         async with db_session() as session:

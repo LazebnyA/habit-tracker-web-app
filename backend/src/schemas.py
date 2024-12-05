@@ -1,11 +1,9 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-
 class Goal(BaseModel):
     id: int
     name: str
-
 
 class DatabaseScheme(BaseModel):
     id: int

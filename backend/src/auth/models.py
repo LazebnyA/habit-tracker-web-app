@@ -7,7 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 if TYPE_CHECKING:
-    from src.models.database import NewsPost, Goal
+    from src.models.models import NewsPost
+    from src.goal.models import Goal
 
 
 class User(Base):

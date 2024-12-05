@@ -3,10 +3,9 @@ from typing import Callable
 from sqlalchemy import select, update, delete
 
 from src.database import db_session
-from src.models.database import Goal, Habit, HabitTrack, NewsPost
-from src.auth.models import User
-from src.schemas import GoalOrmScheme, UserEmail, GoalID, NewsScheme, \
-    GoalDatabaseModel, HabitDatabaseModel, NewsDatabaseModel
+from src.models.models import Habit, HabitTrack, NewsPost
+from src.schemas import GoalID, NewsScheme, \
+    HabitDatabaseModel, NewsDatabaseModel
 
 
 class KeyBuilders:
@@ -14,81 +13,6 @@ class KeyBuilders:
     def custom_key_builder(func: Callable, namespace: str, *args, **kwargs) -> str:
         key = f"{namespace}:{func.__name__}:{':'.join(map(str, args))}:{':'.join([f'{k}:{v}' for k, v in kwargs.items()])}"
         return key
-
-
-class GoalRepository:
-    def __init__(self):
-        pass
-
-    @staticmethod
-    async def get_goals(user: UserEmail) -> list[GoalDatabaseModel]:
-        async with db_session() as session:
-            fetch_id = select(User.id).where(User.email == user.email)
-            result = await session.execute(fetch_id)
-            user_id = result.scalars().one_or_none()
-
-            if user_id is None:
-                return []
-
-            goals_query = select(Goal).where(Goal.userID == user_id)
-            result = await session.execute(goals_query)
-            goal_models = result.scalars().all()
-
-            return [GoalDatabaseModel.model_validate(goal) for goal in goal_models]
-
-    @staticmethod
-    async def get_user_email_by_goal_id(goal_id: GoalID) -> str:
-        async with db_session() as session:
-            fetch_user_id = select(Goal.userID).where(Goal.id == goal_id.id)
-            user_id_result = await session.execute(fetch_user_id)
-            user_id = user_id_result.scalar_one_or_none()
-
-            if user_id:
-                fetch_user_email = select(User.email).where(User.id == user_id)
-                user_email_result = await session.execute(fetch_user_email)
-                user_email = user_email_result.scalar_one_or_none()
-
-                return user_email
-
-        return None
-
-    @staticmethod
-    async def add_goal(user_data: UserEmail, goal_data: GoalOrmScheme):
-        async with db_session() as session:
-            fetch_id = select(User.id).where(user_data.email == User.email)
-            result = await session.execute(fetch_id)
-            user_id = result.scalars().one_or_none()
-
-            goal = Goal(name=goal_data.name, userID=user_id)
-
-            session.add(goal)
-
-            await session.flush()
-            await session.commit()
-
-            return goal
-
-    @staticmethod
-    async def update_goal(goal_id: GoalID, goal_data: GoalOrmScheme):
-        async with db_session() as session:
-            updated = update(Goal).where(Goal.id == goal_id.id).values(name=goal_data.name)
-            updated_val = await session.execute(updated)
-
-            await session.flush()
-            await session.commit()
-
-            return updated_val
-
-    @staticmethod
-    async def delete_goal(goal_id: GoalID):
-        async with db_session() as session:
-            delete_statement = delete(Goal).where(Goal.id == goal_id.id)
-            deleted_val = await session.execute(delete_statement)
-
-            await session.flush()
-            await session.commit()
-
-            return deleted_val
 
 
 class HabitsRepository:

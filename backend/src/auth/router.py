@@ -13,7 +13,7 @@ router = APIRouter(
 
 @router.post("/user/register", response_model=UserSchema, status_code=201, summary="Register a new user")
 async def register_user(user: UserRegScheme) -> TokenSchema:
-    user_data = await UserRepository.create_user(user)
+    user_data = await UserRepository.create(user)
     token_data = auth_user_issue_jwt(user_data)
 
     return token_data
@@ -21,7 +21,7 @@ async def register_user(user: UserRegScheme) -> TokenSchema:
 
 @router.post("/user/signin")
 async def signin_user(user: UserSignInScheme) -> TokenSchema:
-    user_data = await UserRepository.verify_account(user)
+    user_data = await UserRepository.log_in(user)
     token_data = auth_user_issue_jwt(user_data)
 
     return token_data
