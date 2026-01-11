@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from config import DB_URL
+from config import ALEMBIC_DB_URL
 from models.database import Base
 
 # this is the Alembic Config object, which provides
@@ -13,7 +13,7 @@ from models.database import Base
 config = context.config
 
 section = config.config_ini_section
-config.set_section_option(section, "DB_URL", DB_URL)
+config.set_section_option(section, "DB_URL", ALEMBIC_DB_URL)
 
 
 if config.config_file_name is not None:

@@ -3,14 +3,21 @@ from typing import List
 
 from fastapi import HTTPException
 from sqlalchemy import select, update, delete
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from starlette import status
 
 from config import DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
 from models.database import User, Goal, Habit, HabitTrack, NewsPost
 
-from schemas import UserRegScheme, UserOrmScheme, UserSignInScheme, GoalOrmScheme, UserEmail, GoalID, NewsScheme
+from schemas import (
+    UserRegScheme,
+    UserSignInScheme,
+    GoalOrmScheme,
+    UserEmail,
+    GoalID,
+    NewsScheme,
+)
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
@@ -24,67 +31,71 @@ class UserNotFoundException(Exception):
 
 
 class UserRepository:
-    @classmethod
-    async def verify_email(cls, email: str) -> bool:
-        async with new_session() as session:
-            query = select(User).filter(User.email == email)
-            result = await session.execute(query)
-            user = result.scalars().one_or_none()
+    def __init__(self, session: AsyncSession):
+        self.session = session
 
-            return bool(user)
+    async def verify_email(self, email: str) -> bool:
+        query = select(User).filter(User.email == email)
+        result = await self.session.execute(query)
+        user = result.scalars().one_or_none()
 
+        return bool(user)
 
-    @classmethod
-    async def add_user(cls, data: UserRegScheme):
-        async with new_session() as session:
-            if not await UserRepository.verify_email(data.email):
-                user_dict = data.model_dump()
+    async def add_user(self, data: UserRegScheme):
+        if not await self.verify_email(data.email):
+            user_dict = data.model_dump()
+            user_dict.popitem()
 
-                user_dict.popitem()
+            user = User(**user_dict)
 
-                user = User(**user_dict)
+            user_dict.popitem()
 
-                user_dict.popitem()
+            self.session.add(user)
 
-                session.add(user)
+            await self.session.flush()
+            await self.session.commit()
 
-                await session.flush()
-                await session.commit()
+            user_info = {
+                "firstName": user_dict["firstName"],
+                "lastName": user_dict["lastName"],
+                "email": user_dict["email"],
+            }
 
-                user_info = {
-                    "firstName": user_dict["firstName"],
-                    "lastName": user_dict["lastName"],
-                    "email": user_dict["email"]
-                }
+            return user_info
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User with the provided email already exists",
+            )
 
-                return user_info
-            else:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                    detail="User with the provided email already exists")
+    async def verify_account(self, data: UserSignInScheme):
+        query = select(User).filter(User.email == data.email)
+        result = await self.session.execute(query)
+        user = result.scalars().one_or_none()
 
-    @classmethod
-    async def verify_account(cls, data: UserSignInScheme):
-        async with new_session() as session:
-            query = select(User).filter(User.email == data.email)
-            result = await session.execute(query)
-            user = result.scalars().one_or_none()
-            print(user)
-            if user and data.password == user.password:
-                user_info = {
-                    "firstName": user.firstName,
-                    "lastName": user.lastName,
-                    "email": user.email
-                }
-                return user_info
-            elif user:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                    detail="User with the provided email and password does not exist")
-            else:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                    detail="User with the provided email does not exist")
+        if user and data.password == user.password:
+            user_info = {
+                "firstName": user.firstName,
+                "lastName": user.lastName,
+                "email": user.email,
+            }
+            return user_info
+        elif user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User with the provided email and password does not exist",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User with the provided email does not exist",
+            )
 
 
 class GoalRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
     @classmethod
     async def get_goals(cls, user: UserEmail):
         async with new_session() as session:
@@ -117,7 +128,9 @@ class GoalRepository:
     @classmethod
     async def update_goal(cls, goal_id: GoalID, goal_data: GoalOrmScheme):
         async with new_session() as session:
-            updated = update(Goal).where(Goal.id == goal_id.id).values(name=goal_data.name)
+            updated = (
+                update(Goal).where(Goal.id == goal_id.id).values(name=goal_data.name)
+            )
             updated_val = await session.execute(updated)
 
             await session.flush()
@@ -171,7 +184,9 @@ class HabitsRepository:
     @classmethod
     async def update_habit(cls, habit_id: int, new_habit_name: str):
         async with new_session() as session:
-            updated = update(Habit).where(Habit.id == habit_id).values(name=new_habit_name)
+            updated = (
+                update(Habit).where(Habit.id == habit_id).values(name=new_habit_name)
+            )
             updated_val = await session.execute(updated)
 
             await session.flush()
@@ -200,14 +215,18 @@ class HabitTrackRepository:
             habit = result.scalars().one_or_none()
 
             if habit:
-                updated_stmt = update(HabitTrack).where(
-                    (HabitTrack.habitID == habit_id) & (HabitTrack.date == date)
-                ).values({'is_checked': True})
+                updated_stmt = (
+                    update(HabitTrack)
+                    .where((HabitTrack.habitID == habit_id) & (HabitTrack.date == date))
+                    .values({"is_checked": True})
+                )
                 await session.execute(updated_stmt)
                 await session.commit()
                 return habit
             else:
-                habit_track_orm = HabitTrack(habitID=habit_id, date=date, is_checked=True)
+                habit_track_orm = HabitTrack(
+                    habitID=habit_id, date=date, is_checked=True
+                )
                 session.add(habit_track_orm)
                 await session.commit()
                 return habit_track_orm
@@ -226,8 +245,9 @@ class HabitTrackRepository:
             await session.commit()
 
             result_proxy = await session.execute(
-                select(HabitTrack)
-                .where((HabitTrack.habitID == habit_id) & (HabitTrack.date == date))
+                select(HabitTrack).where(
+                    (HabitTrack.habitID == habit_id) & (HabitTrack.date == date)
+                )
             )
 
             result = result_proxy.scalars().one_or_none()
@@ -241,9 +261,9 @@ class HabitTrackRepository:
                 select(Habit.id)
                 .join(HabitTrack)
                 .where(
-                    (Habit.goalID == goal_id) &
-                    (HabitTrack.date == date) &
-                    HabitTrack.is_checked
+                    (Habit.goalID == goal_id)
+                    & (HabitTrack.date == date)
+                    & HabitTrack.is_checked
                 )
             )
             result = await session.execute(stmt)
@@ -259,12 +279,8 @@ class HabitTrackRepository:
     @classmethod
     async def get_dates_by_habit(cls, habit_id: int):
         async with new_session() as session:
-            stmt = (
-                select(HabitTrack.date)
-                .where(
-                    (HabitTrack.habitID == habit_id) &
-                    HabitTrack.is_checked
-                )
+            stmt = select(HabitTrack.date).where(
+                (HabitTrack.habitID == habit_id) & HabitTrack.is_checked
             )
             result = await session.execute(stmt)
 
@@ -281,7 +297,11 @@ class NewsRepository:
     @classmethod
     async def post_news(cls, post_data: NewsScheme):
         async with new_session() as session:
-            post = NewsPost(title=post_data.title, content=post_data.content, userID=post_data.user_id)
+            post = NewsPost(
+                title=post_data.title,
+                content=post_data.content,
+                userID=post_data.user_id,
+            )
 
             session.add(post)
 

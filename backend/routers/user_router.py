@@ -1,19 +1,21 @@
 from typing import Annotated
 
 from fastapi import Depends, APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from database import get_async_session
 from repository import UserRepository
-from schemas import Goal, UserRegScheme, UserSignInScheme
+from schemas import UserRegScheme, UserSignInScheme
 
-router = APIRouter(
-    prefix="",
-    tags=["User"]
-)
+router = APIRouter(prefix="", tags=["User"])
 
 
 @router.post("/user/register")
-async def register_user(user: Annotated[UserRegScheme, Depends()]):
-    user_reg = await UserRepository.add_user(user)
+async def register_user(
+    user: UserRegScheme, session: AsyncSession = Depends(get_async_session)
+):
+    user_repo = UserRepository(session)
+    user_reg = await user_repo.add_user(user)
     return user_reg
 
 
